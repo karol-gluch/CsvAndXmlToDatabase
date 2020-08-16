@@ -14,89 +14,56 @@ import java.sql.Statement;
 
 public class XmlController {
 
-    public static void insertToDatabasePersonXml(Element eElement, PreparedStatement statement) throws Exception {
-        if (eElement.getElementsByTagName("name").item(0) == null)
-            statement.setString(1, null);
-        else
-            statement.setString(1, eElement.getElementsByTagName("name").item(0).getTextContent());
-
-
-        if (eElement.getElementsByTagName("surname").item(0) == null)
-            statement.setString(2, null);
-        else
-            statement.setString(2, eElement.getElementsByTagName("surname").item(0).getTextContent());
-
-
-        if (eElement.getElementsByTagName("age").item(0) == null)
-            statement.setString(3, null);
-        else
-            statement.setString(3, eElement.getElementsByTagName("age").item(0).getTextContent());
-
-
-        statement.executeUpdate();
-    }
-
-    public static void insertToDatabaseContactsXml(int id, int type, String value, PreparedStatement statement) throws Exception {
-        statement.setInt(1, id);
-        statement.setInt(2, type);
-        statement.setString(3, value);
-        statement.executeUpdate();
-    }
-
     public static void readDataFromXml() throws Exception {
 
-        String pathXml = ConfigurationApp.filePathConfiguration(); //path to file
+        String pathXml = ConfigurationApp.getFilePathConfiguration(); //path to file
 
         try {
             File inputFile = new File(pathXml);
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-            Document doc = dBuilder.parse(inputFile);
-            doc.getDocumentElement().normalize();
+            Document document = dBuilder.parse(inputFile);
+            document.getDocumentElement().normalize();
 
-            String sqlCustomer = "INSERT INTO CUSTOMERS (NAME, SURNAME, AGE) VALUES (?, ?, ?)";
-            String sqlContact = "INSERT INTO CONTACTS (ID_CUSTOMER, TYPE, CONTACT) VALUES (?, ?, ?)";
-            Connection con = DatabaseController.getConnection();
+            Connection connection = DatabaseController.getConnection();
 
-            PreparedStatement statement = con.prepareStatement(sqlCustomer, Statement.RETURN_GENERATED_KEYS);
-            PreparedStatement statementC = con.prepareStatement(sqlContact);
+            PreparedStatement statementPerson = connection.prepareStatement(DatabaseController.sqlCustomer, Statement.RETURN_GENERATED_KEYS);
+            PreparedStatement statementContact = connection.prepareStatement(DatabaseController.sqlContact);
 
-            NodeList nList = doc.getElementsByTagName("person");
+            NodeList nodeList = document.getElementsByTagName("person");
 
-            for (int i = 0; i < nList.getLength(); i++) {
-                Node nNode = nList.item(i);
-                if (nNode.getNodeType() == Node.ELEMENT_NODE) {
-                    Element eElement = (Element) nNode;
+            for (int i = 0; i < nodeList.getLength(); i++) {
+                Node node = nodeList.item(i);
+                if (node.getNodeType() == Node.ELEMENT_NODE) {
+                    Element element = (Element) node;
 
                     //insert name,surname and age
-                    insertToDatabasePersonXml(eElement, statement);
+                    DatabaseController.insertToDatabasePersonXml(element, statementPerson);
 
-                    int id_customer = findCustomerID(statement);
+                    int id_customer = findCustomerID(statementPerson);
 
-
-                    for (int j = 0; j < eElement.getElementsByTagName("email").getLength(); j++) {
-                        insertToDatabaseContactsXml(id_customer, 1, eElement.getElementsByTagName("email").item(j).getTextContent(), statementC);
+                    for (int j = 0; j < element.getElementsByTagName("email").getLength(); j++) {
+                        DatabaseController.insertToDatabaseContacts(id_customer, 1, element.getElementsByTagName("email").item(j).getTextContent(), statementContact);
                     }
-                    for (int j = 0; j < eElement.getElementsByTagName("phone").getLength(); j++) {
-                        insertToDatabaseContactsXml(id_customer, 2, eElement.getElementsByTagName("phone").item(j).getTextContent(), statementC);
+                    for (int j = 0; j < element.getElementsByTagName("phone").getLength(); j++) {
+                        DatabaseController.insertToDatabaseContacts(id_customer, 2, element.getElementsByTagName("phone").item(j).getTextContent(), statementContact);
                     }
-                    for (int j = 0; j < eElement.getElementsByTagName("jabber").getLength(); j++) {
-                        insertToDatabaseContactsXml(id_customer, 3, eElement.getElementsByTagName("jabber").item(j).getTextContent(), statementC);
+                    for (int j = 0; j < element.getElementsByTagName("jabber").getLength(); j++) {
+                        DatabaseController.insertToDatabaseContacts(id_customer, 3, element.getElementsByTagName("jabber").item(j).getTextContent(), statementContact);
                     }
 
-                    NodeList cList = eElement.getChildNodes();
-                    for (int j = 0; j < cList.getLength(); j++) {
-                        Node cNode = cList.item(j);
-                        if (cNode.getNodeType() == Node.ELEMENT_NODE) {
-                            Element cElement = (Element) cNode;
-                            NodeList otherList = cElement.getChildNodes();
-                            for (int k = 0; k < otherList.getLength(); k++) {
-                                Node otherNode = otherList.item(k);
-                                if (otherNode.getNodeType() == Node.ELEMENT_NODE) {
-                                    Element oElement = (Element) otherNode;
-                                    if (!(oElement.getTagName().equals("phone") || oElement.getTagName().equals("email") || oElement.getTagName().equals("jabber")))
-                                        insertToDatabaseContactsXml(id_customer, 0, oElement.getTextContent(), statementC);
-
+                    NodeList nodeListPerson = element.getChildNodes();
+                    for (int j = 0; j < nodeListPerson.getLength(); j++) {
+                        Node nodePerson = nodeListPerson.item(j);
+                        if (nodePerson.getNodeType() == Node.ELEMENT_NODE) {
+                            Element elementContacts = (Element) nodePerson;
+                            NodeList nodeListContacts = elementContacts.getChildNodes();
+                            for (int k = 0; k < nodeListContacts.getLength(); k++) {
+                                Node nodeTypeOfContact = nodeListContacts.item(k);
+                                if (nodeTypeOfContact.getNodeType() == Node.ELEMENT_NODE) {
+                                    Element elementContact = (Element) nodeTypeOfContact;
+                                    if (!(elementContact.getTagName().equals("phone") || elementContact.getTagName().equals("email") || elementContact.getTagName().equals("jabber")))
+                                        DatabaseController.insertToDatabaseContacts(id_customer, 0, elementContact.getTextContent(), statementContact);
                                 }
                             }
                         }
@@ -110,10 +77,10 @@ public class XmlController {
     }
 
     public static int findCustomerID(PreparedStatement statement) throws Exception{
-        ResultSet rs = statement.getGeneratedKeys();
+        ResultSet resultSets = statement.getGeneratedKeys();
         int id_customer = 0;
-        if (rs.next()) {
-            id_customer = rs.getInt(1);
+        if (resultSets.next()) {
+            id_customer = resultSets.getInt(1);
         }
         return id_customer;
     }
