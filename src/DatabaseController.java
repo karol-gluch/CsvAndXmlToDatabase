@@ -2,10 +2,7 @@ import org.w3c.dom.Element;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.Properties;
 
 public class DatabaseController {
@@ -13,7 +10,13 @@ public class DatabaseController {
     public static String sqlCustomer = "INSERT INTO CUSTOMERS (NAME, SURNAME, AGE) VALUES (?, ?, ?)";
     public static String sqlContact = "INSERT INTO CONTACTS (ID_CUSTOMER, TYPE, CONTACT) VALUES (?, ?, ?)";
 
-    public static Connection getConnection() throws Exception {
+    private Connection connection;
+
+    public DatabaseController() throws Exception {
+        connection = getConnection();
+    }
+
+    private Connection getConnection() throws Exception {
         Connection connection = null;
         Properties properties = new Properties();
         InputStream inputStream = new FileInputStream("dataConfig.properties");
@@ -37,7 +40,7 @@ public class DatabaseController {
         }
     }
 
-    public static void createTable(Connection connection) throws Exception {
+    public void createTable(Connection connection) throws Exception {
         Statement statement = connection.createStatement();
 
         try {
@@ -53,7 +56,10 @@ public class DatabaseController {
         }
     }
 
-    public static void insertToDatabasePersonCsv(String name, String subname, String age, PreparedStatement statement) throws Exception {
+    public int insertToDatabasePersonCsv(String name, String subname, String age) throws Exception {
+
+        PreparedStatement statement = connection.prepareStatement(DatabaseController.sqlCustomer, Statement.RETURN_GENERATED_KEYS);
+
         statement.setString(1, name);
         statement.setString(2, subname);
         if (age.isEmpty())
@@ -62,9 +68,14 @@ public class DatabaseController {
             statement.setString(3, age);
 
         statement.executeUpdate();
+
+        return findCustomerID(statement);
     }
 
-    public static void insertToDatabasePersonXml(Element element, PreparedStatement statement) throws Exception {
+    public int insertToDatabasePersonXml(Element element) throws Exception {
+
+        PreparedStatement statement = connection.prepareStatement(DatabaseController.sqlCustomer, Statement.RETURN_GENERATED_KEYS);
+
         if (element.getElementsByTagName("name").item(0) == null)
             statement.setString(1, null);
         else
@@ -84,14 +95,25 @@ public class DatabaseController {
 
 
         statement.executeUpdate();
+
+        return findCustomerID(statement);
     }
 
+    public void insertToDatabaseContacts(int id, int type, String value) throws Exception {
+        PreparedStatement statement = connection.prepareStatement(DatabaseController.sqlContact);
 
-    public static void insertToDatabaseContacts(int id, int type, String value, PreparedStatement statement) throws Exception {
         statement.setInt(1, id);
         statement.setInt(2, type);
         statement.setString(3, value);
         statement.executeUpdate();
     }
 
+    private int findCustomerID(PreparedStatement statement) throws Exception{
+        ResultSet resultSets = statement.getGeneratedKeys();
+        int id_customer = 0;
+        if (resultSets.next()) {
+            id_customer = resultSets.getInt(1);
+        }
+        return id_customer;
+    }
 }
